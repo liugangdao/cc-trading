@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go mod init:*)",
+      "Bash(go get:*)",
+      "Bash(go mod tidy:*)",
+      "Bash(go build:*)",
+      "Bash(./trading-cli.exe:*)",
+      "Bash(go test:*)",
+      "Bash(tree:*)",
+      "Bash(./trading-cli list:*)",
+      "Bash(./trading-cli open:*)"
+    ]
+  }
+}
