@@ -121,8 +121,17 @@ func (o *Operations) ClosePosition(positionID string, params CloseParams) (*mode
 	marginROI := models.CalculateMarginROI(realizedPnL, pos.Margin)
 	holdingDuration := models.FormatHoldingDuration(closeTime.Sub(pos.OpenTime))
 
-	// 更新仓位信息
-	pos.Status = models.StatusClosed
+	// 更新仓位数量（减去已平仓数量）
+	pos.Quantity -= params.CloseQuantity
+
+	// 判断是否完全平仓
+	if pos.Quantity == 0 {
+		pos.Status = models.StatusClosed
+	} else {
+		// 部分平仓，状态保持 open
+		pos.Status = models.StatusOpen
+	}
+
 	pos.CloseTime = &closeTime
 	pos.ClosePrice = &params.ClosePrice
 	pos.CloseQuantity = &params.CloseQuantity
