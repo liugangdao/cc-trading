@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"text/tabwriter"
+	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
@@ -40,11 +40,18 @@ var accountDeleteCmd = &cobra.Command{
 	RunE:  runAccountDelete,
 }
 
+var accountTemplateCmd = &cobra.Command{
+	Use:   "template",
+	Short: "设置账户开仓模板",
+	RunE:  runAccountTemplate,
+}
+
 func init() {
 	accountCmd.AddCommand(accountListCmd)
 	accountCmd.AddCommand(accountAddCmd)
 	accountCmd.AddCommand(accountUpdateCmd)
 	accountCmd.AddCommand(accountDeleteCmd)
+	accountCmd.AddCommand(accountTemplateCmd)
 	rootCmd.AddCommand(accountCmd)
 }
 
@@ -60,30 +67,68 @@ func runAccountList(cmd *cobra.Command, args []string) error {
 	am := getAccountManager()
 	accounts := am.ListAccounts()
 
+	printTitle("💼 账户管理")
+
 	if len(accounts) == 0 {
-		fmt.Println("暂无账户，使用 'trading-cli account add' 添加账户")
+		printWarning("暂无账户")
+		printHint("使用 'trading-cli account add' 添加新账户")
 		return nil
 	}
 
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	defer w.Flush()
+	for i, acc := range accounts {
+		if i > 0 {
+			printDivider()
+		}
 
-	fmt.Fprintln(w, "账户名称\t余额\t币种")
-	fmt.Fprintln(w, "---\t---\t---")
-
-	for _, acc := range accounts {
 		currency := acc.Currency
 		if currency == "" {
 			currency = "USD"
 		}
-		fmt.Fprintf(w, "%s\t%.2f\t%s\n", acc.Name, acc.Balance, currency)
+
+		// 账户名称
+		printHighlightField("账户", acc.Name)
+		printField("余额", fmt.Sprintf("%.2f %s", acc.Balance, currency))
+
+		// 模板信息
+		if acc.Template != nil {
+			fmt.Print("  ")
+			colorMuted.Print("模板           ")
+			colorSuccess.Print("✓ 已设置 ")
+			colorMuted.Print("(")
+
+			templateParts := []string{}
+			if acc.Template.DefaultSymbol != "" {
+				templateParts = append(templateParts, acc.Template.DefaultSymbol)
+			}
+			if acc.Template.DefaultMarketType != "" {
+				templateParts = append(templateParts, string(acc.Template.DefaultMarketType))
+			}
+			if acc.Template.DefaultDirection != "" {
+				templateParts = append(templateParts, string(acc.Template.DefaultDirection))
+			}
+
+			if len(templateParts) > 0 {
+				colorMuted.Print(strings.Join(templateParts, ", "))
+			}
+			colorMuted.Println(")")
+		} else {
+			fmt.Print("  ")
+			colorMuted.Print("模板           ")
+			colorWarning.Println("未设置")
+		}
 	}
+
+	fmt.Println()
+	printHint("使用 'trading-cli account template' 设置账户模板")
+	fmt.Println()
 
 	return nil
 }
 
 func runAccountAdd(cmd *cobra.Command, args []string) error {
 	am := getAccountManager()
+
+	printTitle("➕ 添加新账户")
 
 	var name string
 	namePrompt := &survey.Input{
@@ -120,10 +165,16 @@ func runAccountAdd(cmd *cobra.Command, args []string) error {
 	}
 
 	if err := am.AddAccount(account); err != nil {
-		return fmt.Errorf("添加账户失败: %w", err)
+		printError(fmt.Sprintf("添加账户失败: %v", err))
+		return err
 	}
 
-	fmt.Printf("\n✓ 账户已添加: %s (%.2f %s)\n", name, balance, currency)
+	fmt.Println()
+	printSuccess("账户已添加")
+	printHighlightField("账户名称", name)
+	printField("余额", fmt.Sprintf("%.2f %s", balance, currency))
+	fmt.Println()
+
 	return nil
 }
 
@@ -223,5 +274,121 @@ func runAccountDelete(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("\n✓ 账户已删除: %s\n", selectedAccount.Name)
+	return nil
+}
+
+func runAccountTemplate(cmd *cobra.Command, args []string) error {
+	am := getAccountManager()
+	accounts := am.ListAccounts()
+
+	printTitle("🎯 设置账户模板")
+
+	if len(accounts) == 0 {
+		printWarning("暂无账户")
+		printHint("请先使用 'trading-cli account add' 添加账户")
+		return nil
+	}
+
+	// 选择账户
+	options := make([]string, len(accounts))
+	for i, acc := range accounts {
+		options[i] = fmt.Sprintf("%s (%.2f %s)", acc.Name, acc.Balance, acc.Currency)
+	}
+
+	var selectedIndex int
+	selectPrompt := &survey.Select{
+		Message: "选择要设置模板的账户:",
+		Options: options,
+	}
+	if err := survey.AskOne(selectPrompt, &selectedIndex); err != nil {
+		return err
+	}
+
+	selectedAccount := accounts[selectedIndex]
+
+	// 显示当前模板（如果有）
+	if selectedAccount.Template != nil {
+		fmt.Println()
+		printInfo("当前模板配置:")
+		if selectedAccount.Template.DefaultMarketType != "" {
+			printField("市场类型", selectedAccount.Template.DefaultMarketType)
+		}
+		if selectedAccount.Template.DefaultSymbol != "" {
+			printField("品种", selectedAccount.Template.DefaultSymbol)
+		}
+		if selectedAccount.Template.DefaultDirection != "" {
+			printField("方向", selectedAccount.Template.DefaultDirection)
+		}
+	}
+
+	fmt.Println()
+	printDivider()
+	fmt.Println()
+
+	template := &models.AccountTemplate{}
+
+	// 设置默认市场类型
+	var marketTypeStr string
+	marketTypePrompt := &survey.Select{
+		Message: "默认市场类型 (可选，按ESC跳过):",
+		Options: []string{"crypto", "forex", "gold", "silver", "futures", "(不设置)"},
+	}
+	if err := survey.AskOne(marketTypePrompt, &marketTypeStr); err != nil {
+		return err
+	}
+	if marketTypeStr != "(不设置)" {
+		template.DefaultMarketType = models.MarketType(marketTypeStr)
+	}
+
+	// 设置默认品种
+	var symbol string
+	symbolPrompt := &survey.Input{
+		Message: "默认品种 (可选，如 BTC/USDT，留空跳过):",
+	}
+	if err := survey.AskOne(symbolPrompt, &symbol); err != nil {
+		return err
+	}
+	template.DefaultSymbol = symbol
+
+	// 设置默认方向
+	var directionStr string
+	directionPrompt := &survey.Select{
+		Message: "默认方向 (可选):",
+		Options: []string{"long", "short", "(不设置)"},
+	}
+	if err := survey.AskOne(directionPrompt, &directionStr); err != nil {
+		return err
+	}
+	if directionStr != "(不设置)" {
+		template.DefaultDirection = models.Direction(directionStr)
+	}
+
+	// 保存模板
+	if err := am.UpdateAccountTemplate(selectedAccount.Name, template); err != nil {
+		printError(fmt.Sprintf("保存模板失败: %v", err))
+		return err
+	}
+
+	fmt.Println()
+	printSuccess("账户模板已更新")
+	printHighlightField("账户", selectedAccount.Name)
+	fmt.Println()
+
+	if template.DefaultMarketType != "" || template.DefaultSymbol != "" || template.DefaultDirection != "" {
+		printInfo("模板配置:")
+		if template.DefaultMarketType != "" {
+			printField("市场类型", template.DefaultMarketType)
+		}
+		if template.DefaultSymbol != "" {
+			printField("品种", template.DefaultSymbol)
+		}
+		if template.DefaultDirection != "" {
+			printField("方向", template.DefaultDirection)
+		}
+	} else {
+		printWarning("未设置任何默认值")
+	}
+	fmt.Println()
+
 	return nil
 }

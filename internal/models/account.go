@@ -12,6 +12,14 @@ type Account struct {
 	Name     string  `json:"name"`
 	Balance  float64 `json:"balance"`
 	Currency string  `json:"currency,omitempty"`
+	Template *AccountTemplate `json:"template,omitempty"` // 开仓模板
+}
+
+// AccountTemplate 账户开仓模板
+type AccountTemplate struct {
+	DefaultMarketType MarketType `json:"defaultMarketType,omitempty"` // 默认市场类型
+	DefaultSymbol     string     `json:"defaultSymbol,omitempty"`     // 默认品种
+	DefaultDirection  Direction  `json:"defaultDirection,omitempty"`  // 默认方向
 }
 
 // AccountConfig 账户配置文件结构
@@ -136,5 +144,23 @@ func (am *AccountManager) DeleteAccount(name string) error {
 	}
 
 	am.config.Accounts = newAccounts
+	return am.Save()
+}
+
+// UpdateAccountTemplate 更新账户模板
+func (am *AccountManager) UpdateAccountTemplate(name string, template *AccountTemplate) error {
+	found := false
+	for i := range am.config.Accounts {
+		if am.config.Accounts[i].Name == name {
+			am.config.Accounts[i].Template = template
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("account not found: %s", name)
+	}
+
 	return am.Save()
 }

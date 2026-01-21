@@ -22,8 +22,7 @@ func init() {
 }
 
 func runOpen(cmd *cobra.Command, args []string) error {
-	fmt.Println("📊 开仓记录")
-	fmt.Println()
+	printTitle("📈 开仓记录")
 
 	var params operations.OpenParams
 
@@ -32,8 +31,8 @@ func runOpen(cmd *cobra.Command, args []string) error {
 	accounts := am.ListAccounts()
 
 	if len(accounts) == 0 {
-		fmt.Println("⚠️  未找到账户配置，请先添加账户:")
-		fmt.Println("   trading-cli account add")
+		printWarning("未找到账户配置")
+		printHint("请先添加账户: trading-cli account add")
 		return fmt.Errorf("no accounts configured")
 	}
 
@@ -59,11 +58,25 @@ func runOpen(cmd *cobra.Command, args []string) error {
 	params.AccountName = selectedAccount.Name
 	params.AccountBalance = selectedAccount.Balance
 
-	fmt.Printf("账户: %s (余额: %.2f %s)\n\n", selectedAccount.Name, selectedAccount.Balance, selectedAccount.Currency)
+	fmt.Println()
+	printHighlightField("账户", fmt.Sprintf("%s (%.2f %s)", selectedAccount.Name, selectedAccount.Balance, selectedAccount.Currency))
+
+	// 显示模板信息（如果有）
+	if selectedAccount.Template != nil {
+		printHint("使用账户模板默认值")
+	}
+	fmt.Println()
+	printDivider()
+	fmt.Println()
 
 	// 交易品种
+	symbolDefault := ""
+	if selectedAccount.Template != nil && selectedAccount.Template.DefaultSymbol != "" {
+		symbolDefault = selectedAccount.Template.DefaultSymbol
+	}
 	symbolPrompt := &survey.Input{
 		Message: "交易品种 (如 BTC/USDT):",
+		Default: symbolDefault,
 	}
 	if err := survey.AskOne(symbolPrompt, &params.Symbol, survey.WithValidator(survey.Required)); err != nil {
 		return err
@@ -71,9 +84,21 @@ func runOpen(cmd *cobra.Command, args []string) error {
 
 	// 市场类型
 	var marketTypeStr string
+	marketTypeOptions := []string{"crypto", "forex", "gold", "silver", "futures"}
+	marketTypeDefault := 0
+	if selectedAccount.Template != nil && selectedAccount.Template.DefaultMarketType != "" {
+		// 找到默认值的索引
+		for i, opt := range marketTypeOptions {
+			if opt == string(selectedAccount.Template.DefaultMarketType) {
+				marketTypeDefault = i
+				break
+			}
+		}
+	}
 	marketTypePrompt := &survey.Select{
 		Message: "市场类型:",
-		Options: []string{"crypto", "forex", "gold", "silver", "futures"},
+		Options: marketTypeOptions,
+		Default: marketTypeDefault,
 	}
 	if err := survey.AskOne(marketTypePrompt, &marketTypeStr); err != nil {
 		return err
@@ -82,9 +107,21 @@ func runOpen(cmd *cobra.Command, args []string) error {
 
 	// 方向
 	var directionStr string
+	directionOptions := []string{"long", "short"}
+	directionDefault := 0
+	if selectedAccount.Template != nil && selectedAccount.Template.DefaultDirection != "" {
+		// 找到默认值的索引
+		for i, opt := range directionOptions {
+			if opt == string(selectedAccount.Template.DefaultDirection) {
+				directionDefault = i
+				break
+			}
+		}
+	}
 	directionPrompt := &survey.Select{
 		Message: "方向:",
-		Options: []string{"long", "short"},
+		Options: directionOptions,
+		Default: directionDefault,
 	}
 	if err := survey.AskOne(directionPrompt, &directionStr); err != nil {
 		return err
@@ -187,22 +224,26 @@ func runOpen(cmd *cobra.Command, args []string) error {
 	// 执行开仓操作
 	pos, err := ops.OpenPosition(params)
 	if err != nil {
-		return fmt.Errorf("开仓失败: %w", err)
+		printError(fmt.Sprintf("开仓失败: %v", err))
+		return err
 	}
 
 	// 显示成功信息
 	fmt.Println()
-	fmt.Printf("✓ 仓位已记录: %s\n", pos.PositionID)
-	fmt.Printf("  品种: %s (%s)\n", pos.Symbol, pos.MarketType)
-	fmt.Printf("  方向: %s\n", pos.Direction)
-	fmt.Printf("  开仓价格: %.4f\n", pos.OpenPrice)
-	fmt.Printf("  仓位大小: %.4f\n", pos.Quantity)
-	fmt.Printf("  止损: %.4f\n", pos.StopLoss)
-	fmt.Printf("  止盈: %.4f\n", pos.TakeProfit)
-	fmt.Printf("  保证金: %.2f\n", pos.Margin)
+	printSuccess("仓位已记录")
+	printHighlightField("仓位ID", pos.PositionID)
+	printDivider()
+	printField("品种", fmt.Sprintf("%s (%s)", pos.Symbol, pos.MarketType))
+	printField("方向", pos.Direction)
+	printField("开仓价格", fmt.Sprintf("%.4f", pos.OpenPrice))
+	printField("仓位大小", fmt.Sprintf("%.4f", pos.Quantity))
+	printField("止损", fmt.Sprintf("%.4f", pos.StopLoss))
+	printField("止盈", fmt.Sprintf("%.4f", pos.TakeProfit))
+	printField("保证金", fmt.Sprintf("%.2f", pos.Margin))
 	if pos.Reason != "" {
-		fmt.Printf("  理由: %s\n", pos.Reason)
+		printField("理由", pos.Reason)
 	}
+	fmt.Println()
 
 	return nil
 }
