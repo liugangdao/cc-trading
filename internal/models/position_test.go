@@ -79,19 +79,56 @@ func TestCalculateRealizedPnL(t *testing.T) {
 
 func TestCalculatePnLPercentage(t *testing.T) {
 	tests := []struct {
+		name           string
+		realizedPnL    float64
+		accountBalance float64
+		expected       float64
+	}{
+		{
+			name:           "Positive PnL",
+			realizedPnL:    100.0,
+			accountBalance: 10000.0,
+			expected:       1.0,
+		},
+		{
+			name:           "Negative PnL",
+			realizedPnL:    -50.0,
+			accountBalance: 10000.0,
+			expected:       -0.5,
+		},
+		{
+			name:           "Zero account balance",
+			realizedPnL:    100.0,
+			accountBalance: 0.0,
+			expected:       0.0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := CalculatePnLPercentage(tt.realizedPnL, tt.accountBalance)
+			if result != tt.expected {
+				t.Errorf("Expected %.2f, got %.2f", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestCalculateMarginROI(t *testing.T) {
+	tests := []struct {
 		name        string
 		realizedPnL float64
 		margin      float64
 		expected    float64
 	}{
 		{
-			name:        "Positive PnL",
+			name:        "Positive ROI",
 			realizedPnL: 100.0,
 			margin:      1000.0,
 			expected:    10.0,
 		},
 		{
-			name:        "Negative PnL",
+			name:        "Negative ROI",
 			realizedPnL: -50.0,
 			margin:      1000.0,
 			expected:    -5.0,
@@ -106,7 +143,7 @@ func TestCalculatePnLPercentage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := CalculatePnLPercentage(tt.realizedPnL, tt.margin)
+			result := CalculateMarginROI(tt.realizedPnL, tt.margin)
 			if result != tt.expected {
 				t.Errorf("Expected %.2f, got %.2f", tt.expected, result)
 			}

@@ -10,16 +10,18 @@ import (
 
 // OpenParams 开仓参数
 type OpenParams struct {
-	Symbol     string
-	MarketType models.MarketType
-	Direction  models.Direction
-	OpenPrice  float64
-	Quantity   float64
-	StopLoss   float64
-	TakeProfit float64
-	Margin     float64
-	Reason     string
-	OpenTime   *time.Time // 可选，为空时使用当前时间
+	AccountName    string
+	AccountBalance float64
+	Symbol         string
+	MarketType     models.MarketType
+	Direction      models.Direction
+	OpenPrice      float64
+	Quantity       float64
+	StopLoss       float64
+	TakeProfit     float64
+	Margin         float64
+	Reason         string
+	OpenTime       *time.Time // 可选，为空时使用当前时间
 }
 
 // CloseParams 平仓参数
@@ -33,11 +35,12 @@ type CloseParams struct {
 
 // FilterParams 筛选参数
 type FilterParams struct {
-	Status     string    // "open", "closed", "all"
-	Symbol     string    // 为空则不筛选
-	MarketType string    // 为空则不筛选
-	FromDate   time.Time // 零值则不筛选
-	ToDate     time.Time // 零值则不筛选
+	Status      string    // "open", "closed", "all"
+	Symbol      string    // 为空则不筛选
+	MarketType  string    // 为空则不筛选
+	AccountName string    // 账户名称，为空则不筛选
+	FromDate    time.Time // 零值则不筛选
+	ToDate      time.Time // 零值则不筛选
 }
 
 // Operations 操作接口
@@ -64,18 +67,20 @@ func (o *Operations) OpenPosition(params OpenParams) (*models.Position, error) {
 
 	// 创建仓位对象
 	pos := &models.Position{
-		PositionID: models.GeneratePositionID(),
-		Symbol:     params.Symbol,
-		MarketType: params.MarketType,
-		OpenTime:   openTime,
-		Direction:  params.Direction,
-		OpenPrice:  params.OpenPrice,
-		Quantity:   params.Quantity,
-		StopLoss:   params.StopLoss,
-		TakeProfit: params.TakeProfit,
-		Margin:     params.Margin,
-		Reason:     params.Reason,
-		Status:     models.StatusOpen,
+		PositionID:     models.GeneratePositionID(),
+		AccountName:    params.AccountName,
+		AccountBalance: params.AccountBalance,
+		Symbol:         params.Symbol,
+		MarketType:     params.MarketType,
+		OpenTime:       openTime,
+		Direction:      params.Direction,
+		OpenPrice:      params.OpenPrice,
+		Quantity:       params.Quantity,
+		StopLoss:       params.StopLoss,
+		TakeProfit:     params.TakeProfit,
+		Margin:         params.Margin,
+		Reason:         params.Reason,
+		Status:         models.StatusOpen,
 	}
 
 	// 验证数据
@@ -112,7 +117,8 @@ func (o *Operations) ClosePosition(positionID string, params CloseParams) (*mode
 
 	// 计算盈亏
 	realizedPnL := models.CalculateRealizedPnL(pos.Direction, pos.OpenPrice, params.ClosePrice, params.CloseQuantity)
-	pnlPercentage := models.CalculatePnLPercentage(realizedPnL, pos.Margin)
+	pnlPercentage := models.CalculatePnLPercentage(realizedPnL, pos.AccountBalance)
+	marginROI := models.CalculateMarginROI(realizedPnL, pos.Margin)
 	holdingDuration := models.FormatHoldingDuration(closeTime.Sub(pos.OpenTime))
 
 	// 更新仓位信息
@@ -122,6 +128,7 @@ func (o *Operations) ClosePosition(positionID string, params CloseParams) (*mode
 	pos.CloseQuantity = &params.CloseQuantity
 	pos.RealizedPnL = &realizedPnL
 	pos.PnLPercentage = &pnlPercentage
+	pos.MarginROI = &marginROI
 	pos.HoldingDuration = &holdingDuration
 	pos.CloseReason = &params.CloseReason
 	pos.CloseNote = params.CloseNote
@@ -162,6 +169,11 @@ func (o *Operations) ListPositions(filter FilterParams) ([]*models.Position, err
 
 		// 市场类型筛选
 		if filter.MarketType != "" && string(pos.MarketType) != filter.MarketType {
+			continue
+		}
+
+		// 账户筛选
+		if filter.AccountName != "" && pos.AccountName != filter.AccountName {
 			continue
 		}
 

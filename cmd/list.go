@@ -13,12 +13,13 @@ import (
 )
 
 var (
-	listStatus     string
-	listSymbol     string
-	listMarketType string
-	listFromDate   string
-	listToDate     string
-	listFormat     string
+	listStatus      string
+	listSymbol      string
+	listMarketType  string
+	listAccountName string
+	listFromDate    string
+	listToDate      string
+	listFormat      string
 )
 
 var listCmd = &cobra.Command{
@@ -32,6 +33,7 @@ func init() {
 	listCmd.Flags().StringVar(&listStatus, "status", "all", "筛选状态 (open, closed, all)")
 	listCmd.Flags().StringVar(&listSymbol, "symbol", "", "筛选交易品种")
 	listCmd.Flags().StringVar(&listMarketType, "market", "", "筛选市场类型")
+	listCmd.Flags().StringVar(&listAccountName, "account", "", "筛选账户")
 	listCmd.Flags().StringVar(&listFromDate, "from", "", "起始日期 (YYYY-MM-DD)")
 	listCmd.Flags().StringVar(&listToDate, "to", "", "结束日期 (YYYY-MM-DD)")
 	listCmd.Flags().StringVar(&listFormat, "format", "table", "输出格式 (table, json)")
@@ -42,9 +44,10 @@ func init() {
 func runList(cmd *cobra.Command, args []string) error {
 	// 解析筛选参数
 	filter := operations.FilterParams{
-		Status:     listStatus,
-		Symbol:     listSymbol,
-		MarketType: listMarketType,
+		Status:      listStatus,
+		Symbol:      listSymbol,
+		MarketType:  listMarketType,
+		AccountName: listAccountName,
 	}
 
 	if listFromDate != "" {

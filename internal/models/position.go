@@ -45,25 +45,28 @@ const (
 // Position 仓位信息
 type Position struct {
 	// 开仓信息
-	PositionID string     `json:"positionId"`
-	Symbol     string     `json:"symbol"`
-	MarketType MarketType `json:"marketType"`
-	OpenTime   time.Time  `json:"openTime"`
-	Direction  Direction  `json:"direction"`
-	OpenPrice  float64    `json:"openPrice"`
-	Quantity   float64    `json:"quantity"`
-	StopLoss   float64    `json:"stopLoss"`
-	TakeProfit float64    `json:"takeProfit"`
-	Margin     float64    `json:"margin"`
-	Reason     string     `json:"reason,omitempty"`
-	Status     Status     `json:"status"`
+	PositionID     string     `json:"positionId"`
+	AccountName    string     `json:"accountName"`              // 账户名称
+	AccountBalance float64    `json:"accountBalance,omitempty"` // 开仓时的账户余额
+	Symbol         string     `json:"symbol"`
+	MarketType     MarketType `json:"marketType"`
+	OpenTime       time.Time  `json:"openTime"`
+	Direction      Direction  `json:"direction"`
+	OpenPrice      float64    `json:"openPrice"`
+	Quantity       float64    `json:"quantity"`
+	StopLoss       float64    `json:"stopLoss"`
+	TakeProfit     float64    `json:"takeProfit"`
+	Margin         float64    `json:"margin"`
+	Reason         string     `json:"reason,omitempty"`
+	Status         Status     `json:"status"`
 
 	// 平仓信息（可选）
 	CloseTime       *time.Time   `json:"closeTime,omitempty"`
 	ClosePrice      *float64     `json:"closePrice,omitempty"`
 	CloseQuantity   *float64     `json:"closeQuantity,omitempty"`
 	RealizedPnL     *float64     `json:"realizedPnL,omitempty"`
-	PnLPercentage   *float64     `json:"pnlPercentage,omitempty"`
+	PnLPercentage   *float64     `json:"pnlPercentage,omitempty"`   // 占账户余额的百分比
+	MarginROI       *float64     `json:"marginROI,omitempty"`       // 保证金回报率
 	HoldingDuration *string      `json:"holdingDuration,omitempty"`
 	CloseReason     *CloseReason `json:"closeReason,omitempty"`
 	CloseNote       string       `json:"closeNote,omitempty"`
@@ -96,8 +99,16 @@ func CalculateRealizedPnL(direction Direction, openPrice, closePrice, quantity f
 	return (openPrice - closePrice) * quantity
 }
 
-// CalculatePnLPercentage 计算盈亏百分比
-func CalculatePnLPercentage(realizedPnL, margin float64) float64 {
+// CalculatePnLPercentage 计算盈亏占账户余额的百分比
+func CalculatePnLPercentage(realizedPnL, accountBalance float64) float64 {
+	if accountBalance == 0 {
+		return 0
+	}
+	return (realizedPnL / accountBalance) * 100
+}
+
+// CalculateMarginROI 计算保证金回报率
+func CalculateMarginROI(realizedPnL, margin float64) float64 {
 	if margin == 0 {
 		return 0
 	}

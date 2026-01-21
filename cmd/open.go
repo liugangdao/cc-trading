@@ -27,6 +27,40 @@ func runOpen(cmd *cobra.Command, args []string) error {
 
 	var params operations.OpenParams
 
+	// 选择账户
+	am := getAccountManager()
+	accounts := am.ListAccounts()
+
+	if len(accounts) == 0 {
+		fmt.Println("⚠️  未找到账户配置，请先添加账户:")
+		fmt.Println("   trading-cli account add")
+		return fmt.Errorf("no accounts configured")
+	}
+
+	var selectedAccountIndex int
+	accountOptions := make([]string, len(accounts))
+	for i, acc := range accounts {
+		currency := acc.Currency
+		if currency == "" {
+			currency = "USD"
+		}
+		accountOptions[i] = fmt.Sprintf("%s (%.2f %s)", acc.Name, acc.Balance, currency)
+	}
+
+	accountPrompt := &survey.Select{
+		Message: "选择账户:",
+		Options: accountOptions,
+	}
+	if err := survey.AskOne(accountPrompt, &selectedAccountIndex); err != nil {
+		return err
+	}
+
+	selectedAccount := accounts[selectedAccountIndex]
+	params.AccountName = selectedAccount.Name
+	params.AccountBalance = selectedAccount.Balance
+
+	fmt.Printf("账户: %s (余额: %.2f %s)\n\n", selectedAccount.Name, selectedAccount.Balance, selectedAccount.Currency)
+
 	// 交易品种
 	symbolPrompt := &survey.Input{
 		Message: "交易品种 (如 BTC/USDT):",

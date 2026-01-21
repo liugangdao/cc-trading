@@ -4,9 +4,11 @@
 
 ## 特性
 
+- 💼 **多账户管理** - 支持管理多个交易账户（如黄金账户、BTC账户）
 - 📊 **交互式开仓记录** - 通过友好的提示界面记录新仓位
 - 📉 **智能平仓管理** - 选择未平仓位并记录平仓信息，自动计算盈亏
-- 🔍 **灵活查询筛选** - 按状态、品种、市场类型、日期范围筛选交易记录
+- 🔍 **灵活查询筛选** - 按状态、品种、市场类型、账户、日期范围筛选交易记录
+- 💰 **双重盈亏指标** - 同时显示账户盈亏比（真实收益）和保证金ROI（资金效率）
 - ⚠️ **强制风险管理** - 开仓时必须设置止损和止盈
 - 📈 **数据分析** - 通过 Claude Code 进行风险评估和表现分析
 - 💾 **简单存储** - JSONL 文件存储，无需数据库
@@ -36,6 +38,32 @@ go run main.go [command]
 
 ## 使用指南
 
+### 账户管理
+
+在开始记录交易之前，需要先添加账户：
+
+```bash
+# 添加账户
+trading-cli account add
+? 账户名称: 黄金账户
+? 账户余额: 10000
+? 币种: USD
+
+# 列出所有账户
+trading-cli account list
+
+# 更新账户余额
+trading-cli account update
+
+# 删除账户
+trading-cli account delete
+```
+
+系统支持多账户管理，适用于：
+- 不同资产类别（如黄金账户、BTC账户）
+- 不同交易平台
+- 不同风险等级的资金划分
+
 ### 开仓记录
 
 ```bash
@@ -43,6 +71,7 @@ trading-cli open
 ```
 
 交互式提示会引导你填写以下信息：
+- **选择账户**（从已配置的账户中选择）
 - 交易品种（如 BTC/USDT）
 - 市场类型（crypto, forex, gold, silver, futures）
 - 方向（long/short）
@@ -81,6 +110,10 @@ trading-cli list --status open
 # 只查看已平仓位
 trading-cli list --status closed
 
+# 按账户筛选
+trading-cli list --account "黄金账户"
+trading-cli list --account "BTC账户"
+
 # 按品种筛选
 trading-cli list --symbol BTC/USDT
 
@@ -94,7 +127,7 @@ trading-cli list --from 2025-01-01 --to 2025-01-31
 trading-cli list --format json
 
 # 组合筛选
-trading-cli list --status closed --market crypto --from 2025-01-01
+trading-cli list --status closed --account "黄金账户" --from 2025-01-01
 ```
 
 ### 数据分析（通过 Claude Code）
@@ -139,6 +172,8 @@ trading-cli list --status closed --market crypto --from 2025-01-01
 ```json
 {
   "positionId": "20250120-143022-A7B3",
+  "accountName": "黄金账户",
+  "accountBalance": 10000.00,
   "symbol": "BTC/USDT",
   "marketType": "crypto",
   "openTime": "2025-01-20T14:30:22Z",
@@ -154,12 +189,17 @@ trading-cli list --status closed --market crypto --from 2025-01-01
   "closePrice": 44200.00,
   "closeQuantity": 0.5,
   "realizedPnL": 850.00,
-  "pnlPercentage": 17.0,
+  "pnlPercentage": 8.5,
+  "marginROI": 17.0,
   "holdingDuration": "19h 45m",
   "closeReason": "take_profit",
   "closeNote": "达到止盈目标"
 }
 ```
+
+**说明**：
+- `pnlPercentage`: 占账户余额的百分比（真实收益率）
+- `marginROI`: 保证金回报率（资金使用效率）
 
 ### 更新策略
 
@@ -185,17 +225,39 @@ JSONL 文件是追加式存储：
 
 ## 盈亏计算
 
+系统提供两种盈亏指标：
+
+### 1. 账户盈亏比（pnlPercentage）
+
+反映交易对整个账户的真实影响。
+
 **做多（Long）**：
 ```
 realizedPnL = (closePrice - openPrice) * closeQuantity
-pnlPercentage = (realizedPnL / margin) * 100
+pnlPercentage = (realizedPnL / accountBalance) * 100
 ```
 
 **做空（Short）**：
 ```
 realizedPnL = (openPrice - closePrice) * closeQuantity
-pnlPercentage = (realizedPnL / margin) * 100
+pnlPercentage = (realizedPnL / accountBalance) * 100
 ```
+
+**示例**：账户余额 $10,000，盈利 $850，账户盈亏比 = 8.5%
+
+### 2. 保证金回报率（marginROI）
+
+反映资金使用效率。
+
+```
+marginROI = (realizedPnL / margin) * 100
+```
+
+**示例**：保证金 $5,000，盈利 $850，保证金ROI = 17%
+
+**推荐用途**：
+- 用**账户盈亏比**评估真实收益和风险
+- 用**保证金ROI**评估资金使用效率
 
 ## 项目结构
 

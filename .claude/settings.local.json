@@ -9,7 +9,8 @@
       "Bash(go test:*)",
       "Bash(tree:*)",
       "Bash(./trading-cli list:*)",
-      "Bash(./trading-cli open:*)"
+      "Bash(./trading-cli open:*)",
+      "Bash(./trading-cli:*)"
     ]
   }
 }
