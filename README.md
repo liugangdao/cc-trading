@@ -132,30 +132,47 @@ trading-cli list --status closed --account "黄金账户" --from 2025-01-01
 
 ### 数据分析（通过 Claude Code）
 
-项目包含预设的分析 Prompt 模板，位于 `prompts/` 目录：
+#### 快速分析 - 使用 Skill（推荐）
 
-1. **风险评估** (`prompts/risk-assessment.md`)
-   - 评估当前持仓风险
-   - 计算风险回报比
-   - 检查仓位集中度
-   - 提供风险预警
+项目内置了 `/anasisly-trading` 技能，可快速生成约 300 字的精简诊断报告：
 
-2. **交易优化** (`prompts/trade-optimization.md`)
-   - 分析历史交易表现
-   - 计算胜率和盈亏比
-   - 识别最佳/最差品种
-   - 提供优化建议
+```bash
+# 在 Claude Code 中运行（自动分析当前月份）
+/anasisly-trading
 
-**使用方法**：
-1. 在 Claude Code 中打开项目目录
-2. 复制 Prompt 内容
-3. 粘贴到 Claude Code 对话框
-4. Claude Code 会自动读取 `trading-data/` 中的数据并分析
+# 或指定具体月份文件
+/anasisly-trading ./trading-data/trades-2025-12.jsonl
+```
+
+**分析内容**：
+- 核心数据：总盈亏、胜率、止盈/止损率、平均持仓时间
+- 问题检测：风险管理、执行纪律、心理模式（标注 🔴 高危 / 🟡 警告）
+- 改进建议：3-5 条按优先级排序的可执行措施
+- 下月目标：可衡量的具体目标
+
+**输出示例**：
+```
+🔴 仓位管理失控 - 保证金从 $8 暴增至 $600 (75倍)
+🔴 FOMO 驱动的冲动交易 - 2小时内完成4笔交易
+🟡 执行纪律缺失 - 75% 手动平仓率
+
+改进建议：
+1. [最关键] 固定仓位管理规则 - 每笔保证金 ≤ 账户 2%
+2. [重要] 强制冷静期机制 - 交易间隔 ≥ 24 小时
+3. [建议] 重建止损/止盈纪律
+```
+
+报告自动保存至 `./trading-data/reports/diagnosis-YYYY-MM.md`
+
+#### 深度分析 - 自定义提问
 
 你也可以直接向 Claude Code 提问：
 - "分析我在 BTC/USDT 上的交易表现"
 - "计算我本月的总盈亏"
 - "找出我最常犯的交易错误"
+- "对比黄金账户和 BTC 账户的收益差异"
+
+Claude Code 会自动读取 `trading-data/` 中的数据并提供详细分析。
 
 ## 数据存储
 
@@ -263,6 +280,9 @@ marginROI = (realizedPnL / margin) * 100
 
 ```
 trading-journal-cli/
+├── .claude/
+│   └── skills/            # Claude Code 技能
+│       └── anasisly-trading/  # 交易日志分析技能
 ├── cmd/                    # CLI 命令
 │   ├── root.go            # 根命令
 │   ├── open.go            # 开仓命令
@@ -273,9 +293,10 @@ trading-journal-cli/
 │   ├── storage/           # JSONL 存储
 │   ├── validator/         # 数据验证
 │   └── operations/        # 业务操作
-├── prompts/               # Claude Code 分析 Prompt
 ├── trading-data/          # 交易数据存储目录
+│   └── reports/           # 分析报告（由 skill 生成）
 ├── main.go               # 程序入口
+├── CLAUDE.md             # Claude Code 使用指南
 └── README.md             # 本文档
 ```
 
@@ -288,6 +309,9 @@ trading-journal-cli/
 - `futures` - 期货
 
 ## 常见问题
+
+### Q: 如何快速分析我的交易表现？
+A: 在 Claude Code 中运行 `/anasisly-trading`，会自动生成精简诊断报告，识别关键问题并提供改进建议。报告保存在 `./trading-data/reports/` 目录。
 
 ### Q: 数据存储在哪里？
 A: 默认存储在 `./trading-data/` 目录，可以通过 `--data-dir` 参数修改。
