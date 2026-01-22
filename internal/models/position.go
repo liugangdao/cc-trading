@@ -42,6 +42,15 @@ const (
 	CloseReasonManual     CloseReason = "manual"
 )
 
+// MarketContext 市场背景
+type MarketContext string
+
+const (
+	MarketContextBull MarketContext = "bull"   // 牛市
+	MarketContextBear MarketContext = "bear"   // 熊市
+	MarketContextNone MarketContext = "none"   // 不判断
+)
+
 // Position 仓位信息
 type Position struct {
 	// 开仓信息
@@ -59,6 +68,14 @@ type Position struct {
 	Margin         float64    `json:"margin"`
 	Reason         string     `json:"reason,omitempty"`
 	Status         Status     `json:"status"`
+
+	// 市场背景信息（可选）
+	MarketContext        MarketContext `json:"marketContext,omitempty"`        // 市场背景：牛市/熊市
+	MarketPhase          string        `json:"marketPhase,omitempty"`          // 市场阶段（如"牛市末期"）
+	EMA20Broken          bool          `json:"ema20Broken,omitempty"`          // 日线是否跌破EMA20并反抽失败
+	VolumeDecrease       bool          `json:"volumeDecrease,omitempty"`       // 创新高但成交量明显低于前高
+	ConsecutiveLowBreak  bool          `json:"consecutiveLowBreak,omitempty"`  // 连续两次回调都打穿前低
+	MarketNote           string        `json:"marketNote,omitempty"`           // 市场背景备注
 
 	// 平仓信息（可选）
 	CloseTime       *time.Time   `json:"closeTime,omitempty"`

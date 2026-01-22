@@ -194,6 +194,121 @@ func runOpen(cmd *cobra.Command, args []string) error {
 	}
 	survey.AskOne(reasonPrompt, &params.Reason)
 
+	fmt.Println()
+	printDivider()
+	fmt.Println()
+
+	// 市场背景判断
+	printInfo("市场背景判断（可选）")
+	var judgeMarket bool
+	judgeMarketPrompt := &survey.Confirm{
+		Message: "是否需要判断市场背景?",
+		Default: false,
+	}
+	if err := survey.AskOne(judgeMarketPrompt, &judgeMarket); err != nil {
+		return err
+	}
+
+	if judgeMarket {
+		// 询问市场类型
+		var marketContextStr string
+		marketContextPrompt := &survey.Select{
+			Message: "当前市场背景:",
+			Options: []string{"牛市", "熊市", "震荡"},
+		}
+		if err := survey.AskOne(marketContextPrompt, &marketContextStr); err != nil {
+			return err
+		}
+
+		// 只有牛市才进行进一步判断
+		if marketContextStr == "牛市" {
+			params.MarketContext = models.MarketContextBull
+
+			fmt.Println()
+			printWarning("牛市末期信号判断（满足2项或以上为牛市末期）")
+			fmt.Println()
+
+			// ① 日线是否跌破 EMA20，并反抽失败
+			var ema20Broken bool
+			ema20Prompt := &survey.Confirm{
+				Message: "① 日线是否跌破 EMA20，并反抽失败?",
+				Default: false,
+			}
+			survey.AskOne(ema20Prompt, &ema20Broken)
+			params.EMA20Broken = ema20Broken
+
+			// ② 创新高但成交量明显低于前高
+			var volumeDecrease bool
+			volumePrompt := &survey.Confirm{
+				Message: "② 创新高但成交量明显低于前高?",
+				Default: false,
+			}
+			survey.AskOne(volumePrompt, &volumeDecrease)
+			params.VolumeDecrease = volumeDecrease
+
+			// ③ 连续两次回调都打穿前低
+			var consecutiveLowBreak bool
+			lowBreakPrompt := &survey.Confirm{
+				Message: "③ 连续两次回调都打穿前低?",
+				Default: false,
+			}
+			survey.AskOne(lowBreakPrompt, &consecutiveLowBreak)
+			params.ConsecutiveLowBreak = consecutiveLowBreak
+
+			// 计算满足的条件数量
+			signalCount := 0
+			var signals []string
+			if ema20Broken {
+				signalCount++
+				signals = append(signals, "日线跌破EMA20并反抽失败")
+			}
+			if volumeDecrease {
+				signalCount++
+				signals = append(signals, "创新高但成交量明显低于前高")
+			}
+			if consecutiveLowBreak {
+				signalCount++
+				signals = append(signals, "连续两次回调都打穿前低")
+			}
+
+			// 判断是否为牛市末期
+			if signalCount >= 2 {
+				params.MarketPhase = "牛市末期"
+				noteBuilder := fmt.Sprintf("⚠️  检测到 %d 个牛市末期信号：", signalCount)
+				for i, sig := range signals {
+					noteBuilder += fmt.Sprintf("\n  %d. %s", i+1, sig)
+				}
+				noteBuilder += "\n建议：谨慎做多，关注趋势反转风险"
+				params.MarketNote = noteBuilder
+
+				fmt.Println()
+				printWarning(fmt.Sprintf("检测到 %d 个牛市末期信号", signalCount))
+				printError("市场阶段: 牛市末期")
+				fmt.Println()
+			} else if signalCount > 0 {
+				params.MarketPhase = "牛市"
+				noteBuilder := fmt.Sprintf("检测到 %d 个末期信号，暂未达到警戒线(2个)：", signalCount)
+				for i, sig := range signals {
+					noteBuilder += fmt.Sprintf("\n  %d. %s", i+1, sig)
+				}
+				params.MarketNote = noteBuilder
+			} else {
+				params.MarketPhase = "牛市"
+				params.MarketNote = "未检测到牛市末期信号，市场处于健康状态"
+			}
+		} else if marketContextStr == "熊市" {
+			params.MarketContext = models.MarketContextBear
+			params.MarketPhase = "熊市"
+		} else {
+			params.MarketContext = models.MarketContextNone
+			params.MarketPhase = "震荡"
+		}
+	}
+
+	fmt.Println()
+	printDivider()
+	fmt.Println()
+
 	// 开仓时间（可选）
 	var useCurrentTime bool
 	timePrompt := &survey.Confirm{
@@ -242,6 +357,21 @@ func runOpen(cmd *cobra.Command, args []string) error {
 	printField("保证金", fmt.Sprintf("%.2f", pos.Margin))
 	if pos.Reason != "" {
 		printField("理由", pos.Reason)
+	}
+
+	// 显示市场背景信息
+	if pos.MarketContext != "" && pos.MarketContext != models.MarketContextNone {
+		fmt.Println()
+		printDivider()
+		if pos.MarketPhase == "牛市末期" {
+			printError(fmt.Sprintf("市场背景: %s - %s", pos.MarketContext, pos.MarketPhase))
+		} else {
+			printInfo(fmt.Sprintf("市场背景: %s - %s", pos.MarketContext, pos.MarketPhase))
+		}
+		if pos.MarketNote != "" {
+			fmt.Println()
+			printField("备注", pos.MarketNote)
+		}
 	}
 	fmt.Println()
 

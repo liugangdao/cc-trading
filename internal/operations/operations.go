@@ -22,6 +22,14 @@ type OpenParams struct {
 	Margin         float64
 	Reason         string
 	OpenTime       *time.Time // 可选，为空时使用当前时间
+
+	// 市场背景信息
+	MarketContext       models.MarketContext
+	MarketPhase         string
+	EMA20Broken         bool
+	VolumeDecrease      bool
+	ConsecutiveLowBreak bool
+	MarketNote          string
 }
 
 // CloseParams 平仓参数
@@ -81,6 +89,14 @@ func (o *Operations) OpenPosition(params OpenParams) (*models.Position, error) {
 		Margin:         params.Margin,
 		Reason:         params.Reason,
 		Status:         models.StatusOpen,
+
+		// 市场背景信息
+		MarketContext:       params.MarketContext,
+		MarketPhase:         params.MarketPhase,
+		EMA20Broken:         params.EMA20Broken,
+		VolumeDecrease:      params.VolumeDecrease,
+		ConsecutiveLowBreak: params.ConsecutiveLowBreak,
+		MarketNote:          params.MarketNote,
 	}
 
 	// 验证数据

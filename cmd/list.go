@@ -146,6 +146,7 @@ func outputTable(positions []*models.Position) error {
 		colPrice    = 12
 		colQty      = 10
 		colStatus   = 10
+		colMarket   = 12
 		colPnL      = 22
 	)
 
@@ -172,11 +173,13 @@ func outputTable(positions []*models.Position) error {
 	colorMuted.Print(" │ ")
 	colorTitle.Print(padRight("状态", colStatus))
 	colorMuted.Print(" │ ")
+	colorTitle.Print(padRight("市场阶段", colMarket))
+	colorMuted.Print(" │ ")
 	colorTitle.Print(padRight("盈亏", colPnL))
 	fmt.Println()
 
 	fmt.Print("  ")
-	colorMuted.Println(strings.Repeat("─", colPosID+colSymbol+colDir+colPrice+colQty+colStatus+colPnL+18))
+	colorMuted.Println(strings.Repeat("─", colPosID+colSymbol+colDir+colPrice+colQty+colStatus+colMarket+colPnL+21))
 
 	// 数据行
 	for _, pos := range positions {
@@ -230,6 +233,18 @@ func outputTable(positions []*models.Position) error {
 		} else {
 			statusText = "已平仓"
 			colorBlue.Print(padRight(statusText, colStatus))
+		}
+		colorMuted.Print(" │ ")
+
+		// 市场阶段
+		if pos.MarketPhase != "" {
+			if pos.MarketPhase == "牛市末期" {
+				colorRed.Print(padRight(pos.MarketPhase, colMarket))
+			} else {
+				colorGreen.Print(padRight(pos.MarketPhase, colMarket))
+			}
+		} else {
+			colorMuted.Print(padRight("-", colMarket))
 		}
 		colorMuted.Print(" │ ")
 
