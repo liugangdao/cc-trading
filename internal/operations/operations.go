@@ -39,6 +39,7 @@ type CloseParams struct {
 	CloseReason   models.CloseReason
 	CloseNote     string
 	CloseTime     *time.Time // 可选，为空时使用当前时间
+	ManualPnL     *float64   // 可选，手动输入的盈亏（优先使用）
 }
 
 // FilterParams 筛选参数
@@ -53,15 +54,17 @@ type FilterParams struct {
 
 // Operations 操作接口
 type Operations struct {
-	storage   storage.Storage
-	validator validator.Validator
+	storage        storage.Storage
+	validator      validator.Validator
+	accountManager *models.AccountManager
 }
 
 // NewOperations 创建新的操作实例
-func NewOperations(store storage.Storage, valid validator.Validator) *Operations {
+func NewOperations(store storage.Storage, valid validator.Validator, accountMgr *models.AccountManager) *Operations {
 	return &Operations{
-		storage:   store,
-		validator: valid,
+		storage:        store,
+		validator:      valid,
+		accountManager: accountMgr,
 	}
 }
 
@@ -131,8 +134,15 @@ func (o *Operations) ClosePosition(positionID string, params CloseParams) (*mode
 		closeTime = *params.CloseTime
 	}
 
-	// 计算盈亏
-	realizedPnL := models.CalculateRealizedPnL(pos.Direction, pos.OpenPrice, params.ClosePrice, params.CloseQuantity)
+	// 计算盈亏（优先使用手动输入的值）
+	var realizedPnL float64
+	if params.ManualPnL != nil {
+		// 使用手动输入的盈亏
+		realizedPnL = *params.ManualPnL
+	} else {
+		// 自动计算盈亏
+		realizedPnL = models.CalculateRealizedPnL(pos.Direction, pos.OpenPrice, params.ClosePrice, params.CloseQuantity)
+	}
 	pnlPercentage := models.CalculatePnLPercentage(realizedPnL, pos.AccountBalance)
 	marginROI := models.CalculateMarginROI(realizedPnL, pos.Margin)
 	holdingDuration := models.FormatHoldingDuration(closeTime.Sub(pos.OpenTime))
@@ -161,6 +171,27 @@ func (o *Operations) ClosePosition(positionID string, params CloseParams) (*mode
 	// 保存更新后的记录
 	if err := o.storage.UpdatePosition(pos); err != nil {
 		return nil, fmt.Errorf("failed to update position: %w", err)
+	}
+
+	// 更新账户余额（在完全平仓时）
+	if pos.Status == models.StatusClosed && o.accountManager != nil {
+		// 加载账户配置
+		if err := o.accountManager.Load(); err != nil {
+			// 如果加载失败，记录错误但不影响平仓操作
+			fmt.Printf("Warning: failed to load account config: %v\n", err)
+		} else {
+			// 获取当前账户
+			account, err := o.accountManager.GetAccount(pos.AccountName)
+			if err != nil {
+				fmt.Printf("Warning: failed to get account %s: %v\n", pos.AccountName, err)
+			} else {
+				// 更新账户余额：当前余额 + 盈亏
+				newBalance := account.Balance + realizedPnL
+				if err := o.accountManager.UpdateAccount(pos.AccountName, newBalance); err != nil {
+					fmt.Printf("Warning: failed to update account balance: %v\n", err)
+				}
+			}
+		}
 	}
 
 	return pos, nil

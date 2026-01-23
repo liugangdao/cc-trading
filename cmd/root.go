@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"trading-journal-cli/internal/models"
 	"trading-journal-cli/internal/operations"
 	"trading-journal-cli/internal/storage"
 	"trading-journal-cli/internal/validator"
@@ -41,5 +42,6 @@ func init() {
 func initOperations() {
 	store := storage.NewJSONLStorage(dataDir)
 	valid := validator.NewPositionValidator()
-	ops = operations.NewOperations(store, valid)
+	accountMgr := models.NewAccountManager(dataDir)
+	ops = operations.NewOperations(store, valid, accountMgr)
 }

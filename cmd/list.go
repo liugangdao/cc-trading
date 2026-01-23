@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -101,8 +102,51 @@ func padRight(s string, width int) string {
 	return s + strings.Repeat(" ", width-w)
 }
 
+// calculateBalanceHistory 计算每个position的平仓后余额（按时间顺序累积）
+func calculateBalanceHistory(positions []*models.Position) map[string]float64 {
+	result := make(map[string]float64)
+
+	// 只处理已平仓的记录
+	closedPositions := make([]*models.Position, 0)
+	for _, pos := range positions {
+		if pos.Status == models.StatusClosed && pos.CloseTime != nil && pos.RealizedPnL != nil {
+			closedPositions = append(closedPositions, pos)
+		}
+	}
+
+	// 按账户分组
+	accountGroups := make(map[string][]*models.Position)
+	for _, pos := range closedPositions {
+		accountGroups[pos.AccountName] = append(accountGroups[pos.AccountName], pos)
+	}
+
+	// 对每个账户，按平仓时间排序并累积计算余额
+	for _, accountPositions := range accountGroups {
+		// 按平仓时间排序
+		sort.Slice(accountPositions, func(i, j int) bool {
+			return accountPositions[i].CloseTime.Before(*accountPositions[j].CloseTime)
+		})
+
+		// 从第一笔交易的开仓余额开始累积
+		var runningBalance float64
+		if len(accountPositions) > 0 {
+			runningBalance = accountPositions[0].AccountBalance
+		}
+
+		for _, pos := range accountPositions {
+			runningBalance += *pos.RealizedPnL
+			result[pos.PositionID] = runningBalance
+		}
+	}
+
+	return result
+}
+
 func outputTable(positions []*models.Position) error {
 	printTitle("📊 交易记录")
+
+	// 计算每个position的平仓后余额（按时间顺序累积）
+	balanceAfterClose := calculateBalanceHistory(positions)
 
 	// 统计信息
 	var openCount, closedCount int
@@ -148,6 +192,7 @@ func outputTable(positions []*models.Position) error {
 		colStatus   = 10
 		colMarket   = 12
 		colPnL      = 22
+		colBalance  = 15
 	)
 
 	// 颜色定义
@@ -176,10 +221,12 @@ func outputTable(positions []*models.Position) error {
 	colorTitle.Print(padRight("市场阶段", colMarket))
 	colorMuted.Print(" │ ")
 	colorTitle.Print(padRight("盈亏", colPnL))
+	colorMuted.Print(" │ ")
+	colorTitle.Print(padRight("平仓后余额", colBalance))
 	fmt.Println()
 
 	fmt.Print("  ")
-	colorMuted.Println(strings.Repeat("─", colPosID+colSymbol+colDir+colPrice+colQty+colStatus+colMarket+colPnL+21))
+	colorMuted.Println(strings.Repeat("─", colPosID+colSymbol+colDir+colPrice+colQty+colStatus+colMarket+colPnL+colBalance+24))
 
 	// 数据行
 	for _, pos := range positions {
@@ -264,6 +311,19 @@ func outputTable(positions []*models.Position) error {
 			}
 		} else {
 			colorMuted.Print(padRight("-", colPnL))
+		}
+		colorMuted.Print(" │ ")
+
+		// 平仓后余额
+		if pos.Status == models.StatusClosed && pos.RealizedPnL != nil {
+			if balance, ok := balanceAfterClose[pos.PositionID]; ok {
+				balanceStr := fmt.Sprintf("%.2f", balance)
+				colorBlue.Print(padRight(balanceStr, colBalance))
+			} else {
+				colorMuted.Print(padRight("-", colBalance))
+			}
+		} else {
+			colorMuted.Print(padRight("-", colBalance))
 		}
 
 		fmt.Println()

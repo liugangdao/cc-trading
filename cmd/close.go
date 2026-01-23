@@ -95,6 +95,32 @@ func runClose(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("无效的数量格式: %w", err)
 	}
 
+	// 询问是否手动输入盈亏
+	var useManualPnL bool
+	manualPnLPrompt := &survey.Confirm{
+		Message: "是否手动输入盈亏金额?",
+		Default: false,
+	}
+	if err := survey.AskOne(manualPnLPrompt, &useManualPnL); err != nil {
+		return err
+	}
+
+	// 如果选择手动输入盈亏
+	if useManualPnL {
+		var pnlStr string
+		pnlPrompt := &survey.Input{
+			Message: "盈亏金额 (正数为盈利，负数为亏损):",
+		}
+		if err := survey.AskOne(pnlPrompt, &pnlStr, survey.WithValidator(survey.Required)); err != nil {
+			return err
+		}
+		var pnl float64
+		if _, err := fmt.Sscanf(pnlStr, "%f", &pnl); err != nil {
+			return fmt.Errorf("无效的盈亏格式: %w", err)
+		}
+		params.ManualPnL = &pnl
+	}
+
 	// 平仓原因
 	var closeReasonStr string
 	closeReasonPrompt := &survey.Select{
