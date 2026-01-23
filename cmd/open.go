@@ -84,7 +84,7 @@ func runOpen(cmd *cobra.Command, args []string) error {
 
 	// 市场类型
 	var marketTypeStr string
-	marketTypeOptions := []string{"crypto", "forex", "gold", "silver", "futures"}
+	marketTypeOptions := []string{"crypto", "forex", "gold", "silver", "futures", "cn_stocks", "us_stocks"}
 	marketTypeDefault := 0
 	if selectedAccount.Template != nil && selectedAccount.Template.DefaultMarketType != "" {
 		// 找到默认值的索引

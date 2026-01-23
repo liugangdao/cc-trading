@@ -18,11 +18,13 @@ const (
 type MarketType string
 
 const (
-	MarketTypeCrypto  MarketType = "crypto"
-	MarketTypeForex   MarketType = "forex"
-	MarketTypeGold    MarketType = "gold"
-	MarketTypeSilver  MarketType = "silver"
-	MarketTypeFutures MarketType = "futures"
+	MarketTypeCrypto   MarketType = "crypto"
+	MarketTypeForex    MarketType = "forex"
+	MarketTypeGold     MarketType = "gold"
+	MarketTypeSilver   MarketType = "silver"
+	MarketTypeFutures  MarketType = "futures"
+	MarketTypeCNStocks MarketType = "cn_stocks"
+	MarketTypeUSStocks MarketType = "us_stocks"
 )
 
 // Status 仓位状态

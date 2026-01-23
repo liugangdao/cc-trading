@@ -69,27 +69,30 @@ trading-journal-cli/
 ```go
 type Position struct {
     // Open position info
-    PositionID   string      `json:"positionId"`
-    Symbol       string      `json:"symbol"`        // e.g., BTC/USDT, EUR/USD
-    MarketType   MarketType  `json:"marketType"`   // crypto, forex, gold, silver, futures
-    OpenTime     time.Time   `json:"openTime"`
-    Direction    Direction   `json:"direction"`     // long, short
-    OpenPrice    float64     `json:"openPrice"`
-    Quantity     float64     `json:"quantity"`
-    StopLoss     float64     `json:"stopLoss"`      // REQUIRED
-    TakeProfit   float64     `json:"takeProfit"`    // REQUIRED
-    Margin       float64     `json:"margin"`
-    Reason       string      `json:"reason,omitempty"`
-    Status       Status      `json:"status"`        // open, closed
+    PositionID     string      `json:"positionId"`
+    AccountName    string      `json:"accountName"`         // Account name
+    AccountBalance float64     `json:"accountBalance"`      // Account balance at open time
+    Symbol         string      `json:"symbol"`              // e.g., BTC/USDT, EUR/USD
+    MarketType     MarketType  `json:"marketType"`          // crypto, forex, gold, silver, futures, cn_stocks, us_stocks
+    OpenTime       time.Time   `json:"openTime"`
+    Direction      Direction   `json:"direction"`           // long, short
+    OpenPrice      float64     `json:"openPrice"`
+    Quantity       float64     `json:"quantity"`
+    StopLoss       float64     `json:"stopLoss"`            // REQUIRED
+    TakeProfit     float64     `json:"takeProfit"`          // REQUIRED
+    Margin         float64     `json:"margin"`
+    Reason         string      `json:"reason,omitempty"`
+    Status         Status      `json:"status"`              // open, closed
 
     // Close position info (optional)
     CloseTime       *time.Time   `json:"closeTime,omitempty"`
     ClosePrice      *float64     `json:"closePrice,omitempty"`
     CloseQuantity   *float64     `json:"closeQuantity,omitempty"`
     RealizedPnL     *float64     `json:"realizedPnL,omitempty"`
-    PnLPercentage   *float64     `json:"pnlPercentage,omitempty"`
+    PnLPercentage   *float64     `json:"pnlPercentage,omitempty"`    // Percentage of account balance
+    MarginROI       *float64     `json:"marginROI,omitempty"`        // Margin return on investment
     HoldingDuration *string      `json:"holdingDuration,omitempty"`
-    CloseReason     *CloseReason `json:"closeReason,omitempty"`  // stop_loss, take_profit, manual
+    CloseReason     *CloseReason `json:"closeReason,omitempty"`      // stop_loss, take_profit, manual
     CloseNote       string       `json:"closeNote,omitempty"`
 }
 ```
@@ -105,11 +108,13 @@ const (
 
 type MarketType string
 const (
-    MarketTypeCrypto  MarketType = "crypto"
-    MarketTypeForex   MarketType = "forex"
-    MarketTypeGold    MarketType = "gold"
-    MarketTypeSilver  MarketType = "silver"
-    MarketTypeFutures MarketType = "futures"
+    MarketTypeCrypto   MarketType = "crypto"
+    MarketTypeForex    MarketType = "forex"
+    MarketTypeGold     MarketType = "gold"
+    MarketTypeSilver   MarketType = "silver"
+    MarketTypeFutures  MarketType = "futures"
+    MarketTypeCNStocks MarketType = "cn_stocks"
+    MarketTypeUSStocks MarketType = "us_stocks"
 )
 
 type Status string
@@ -165,17 +170,31 @@ var (
 
 ## PnL Calculation
 
+**Manual PnL Input (Priority)**:
+Users can manually input the realized PnL during position closing. This is useful for:
+- Forex trading (requires contract size multiplication and exchange rate conversion)
+- Complex derivative products
+- Direct import of actual PnL from trading platforms
+
+When `ManualPnL` is provided in `CloseParams`, it will be used directly instead of automatic calculation.
+
+**Automatic Calculation (Default)**:
+
 **Long Positions**:
 ```
 realizedPnL = (closePrice - openPrice) * closeQuantity
-pnlPercentage = (realizedPnL / margin) * 100
+pnlPercentage = (realizedPnL / accountBalance) * 100
+marginROI = (realizedPnL / margin) * 100
 ```
 
 **Short Positions**:
 ```
 realizedPnL = (openPrice - closePrice) * closeQuantity
-pnlPercentage = (realizedPnL / margin) * 100
+pnlPercentage = (realizedPnL / accountBalance) * 100
+marginROI = (realizedPnL / margin) * 100
 ```
+
+**Note**: `pnlPercentage` is calculated against `accountBalance` (real return), while `marginROI` is calculated against `margin` (capital efficiency).
 
 **Holding Duration**:
 ```go
@@ -209,9 +228,11 @@ trading-cli close
 # Interactive prompts for:
 # - Close price
 # - Close quantity (supports partial close)
+# - Manual PnL input (optional) - user can choose to manually input realized PnL
 # - Close reason (stop_loss/take_profit/manual)
 # - Close note (optional)
-# Automatically calculates PnL, percentage, holding duration
+# Automatically calculates PnL (if not manually provided), percentage, holding duration
+# Automatically updates account balance (account balance += realized PnL)
 ```
 
 ### List/Query Positions
@@ -222,6 +243,7 @@ Flags:
   --status string      Filter by status (open, closed, all) [default: all]
   --symbol string      Filter by trading symbol
   --market string      Filter by market type
+  --account string     Filter by account name
   --from string        Start date (YYYY-MM-DD)
   --to string          End date (YYYY-MM-DD)
   --format string      Output format (table, json) [default: table]
@@ -230,6 +252,13 @@ Examples:
   trading-cli list --status open
   trading-cli list --symbol BTC/USDT --format json
   trading-cli list --from 2025-01-01 --to 2025-01-31
+  trading-cli list --account "黄金账户" --status closed
+
+Table Output Features:
+  - Displays all key information including position ID, symbol, direction, prices, quantity, status, PnL
+  - For closed positions, shows "Balance After Close" column that displays cumulative account balance
+  - Balance is calculated chronologically (sorted by close time) to show actual balance progression
+  - Uses color coding: green for profit, red for loss
 ```
 
 ## Property-Based Testing
@@ -238,7 +267,7 @@ The system implements 11 core correctness properties that should be verified thr
 
 1. **Position ID Uniqueness**: All generated position IDs must be unique
 2. **Stop-Loss/Take-Profit Required**: Open positions must have valid stop-loss and take-profit
-3. **Market Type Support**: All market types (crypto, forex, gold, silver, futures) supported
+3. **Market Type Support**: All market types (crypto, forex, gold, silver, futures, cn_stocks, us_stocks) supported
 4. **Monthly Storage**: Positions stored in correct monthly JSONL file based on openTime
 5. **Position ID Lookup**: Any saved position retrievable by its position ID
 6. **Close Completeness**: Closed positions must have all close fields populated and status = "closed"
