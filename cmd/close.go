@@ -157,7 +157,8 @@ func runClose(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		if timeStr != "" {
-			t, err := time.Parse("2006-01-02 15:04:05", timeStr)
+			// 使用 ParseInLocation 确保时间使用本地时区
+			t, err := time.ParseInLocation("2006-01-02 15:04:05", timeStr, time.Local)
 			if err != nil {
 				return fmt.Errorf("无效的时间格式: %w", err)
 			}

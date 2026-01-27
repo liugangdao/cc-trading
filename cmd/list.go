@@ -145,13 +145,37 @@ func calculateBalanceHistory(positions []*models.Position) map[string]float64 {
 func outputTable(positions []*models.Position) error {
 	printTitle("📊 交易记录")
 
+	// 分离持仓和已平仓的记录
+	var openPositions, closedPositions []*models.Position
+	for _, pos := range positions {
+		if pos.Status == models.StatusOpen {
+			openPositions = append(openPositions, pos)
+		} else {
+			closedPositions = append(closedPositions, pos)
+		}
+	}
+
+	// 对已平仓记录按平仓时间排序
+	sort.Slice(closedPositions, func(i, j int) bool {
+		if closedPositions[i].CloseTime == nil {
+			return false
+		}
+		if closedPositions[j].CloseTime == nil {
+			return true
+		}
+		return closedPositions[i].CloseTime.Before(*closedPositions[j].CloseTime)
+	})
+
+	// 合并：先显示持仓，再显示已平仓（按平仓时间排序）
+	sortedPositions := append(openPositions, closedPositions...)
+
 	// 计算每个position的平仓后余额（按时间顺序累积）
-	balanceAfterClose := calculateBalanceHistory(positions)
+	balanceAfterClose := calculateBalanceHistory(closedPositions)
 
 	// 统计信息
 	var openCount, closedCount int
 	var totalPnL, totalPnLPercentage float64
-	for _, pos := range positions {
+	for _, pos := range sortedPositions {
 		if pos.Status == models.StatusOpen {
 			openCount++
 		} else {
@@ -167,7 +191,7 @@ func outputTable(positions []*models.Position) error {
 
 	// 显示统计
 	printInfo(fmt.Sprintf("总计: %d 条记录 | 持仓: %d | 已平仓: %d",
-		len(positions), openCount, closedCount))
+		len(sortedPositions), openCount, closedCount))
 	if closedCount > 0 {
 		avgPnL := totalPnL / float64(closedCount)
 		avgPnLPct := totalPnLPercentage / float64(closedCount)
@@ -229,7 +253,7 @@ func outputTable(positions []*models.Position) error {
 	colorMuted.Println(strings.Repeat("─", colPosID+colSymbol+colDir+colPrice+colQty+colStatus+colMarket+colPnL+colBalance+24))
 
 	// 数据行
-	for _, pos := range positions {
+	for _, pos := range sortedPositions {
 		fmt.Print("  ")
 
 		// 仓位ID（缩短显示，绿色高亮）
